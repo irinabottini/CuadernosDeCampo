@@ -25,7 +25,7 @@ def index():
 def create_field_book():
     uploaded = request.files.get("source_file")
     if not uploaded or uploaded.filename == "":
-        return {"error": "Subí un archivo Excel fuente."}, 400
+        return {"error": "Subí el Excel fuente exportado desde Scout."}, 400
 
     suffix = Path(uploaded.filename).suffix.lower()
     if suffix not in {".xlsx", ".xlsm"}:
@@ -54,6 +54,8 @@ def create_field_book():
             )
         except GenerationError as exc:
             return {"error": str(exc)}, 400
+        except Exception as exc:
+            return {"error": f"No se pudo generar el archivo. Detalle técnico: {exc}"}, 500
 
         download_name = f"Libro de campo - {metadata.study_name}.xlsx"
         file_bytes = BytesIO(output_path.read_bytes())

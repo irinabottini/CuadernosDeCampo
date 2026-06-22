@@ -14,8 +14,18 @@ form.addEventListener("submit", async (event) => {
   });
 
   if (!response.ok) {
-    const payload = await response.json().catch(() => ({ error: "No se pudo generar el archivo." }));
-    statusEl.textContent = payload.error;
+    let message = "No se pudo generar el archivo.";
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const payload = await response.json().catch(() => null);
+      message = payload?.error || message;
+    } else {
+      const text = await response.text().catch(() => "");
+      if (text) {
+        message = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim().slice(0, 240) || message;
+      }
+    }
+    statusEl.textContent = message;
     statusEl.className = "status error";
     return;
   }
