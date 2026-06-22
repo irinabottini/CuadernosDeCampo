@@ -4,6 +4,11 @@ const statusEl = document.querySelector("#status");
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (window.location.hostname.endsWith("github.io")) {
+    statusEl.textContent = "Esta página abierta desde GitHub no puede generar el Excel. Usá la URL de Render para procesar archivos.";
+    statusEl.className = "status error";
+    return;
+  }
   statusEl.textContent = "Generando archivo...";
   statusEl.className = "status";
 

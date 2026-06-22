@@ -21,7 +21,16 @@ def index():
     return render_template("index.html")
 
 
+@app.get("/api/libro-campo")
+@app.get("/api/libro-campo/")
+def field_book_api_help():
+    return {
+        "error": "Esta ruta recibe archivos por POST. Abrí la página principal y usá el botón Generar libro de campo."
+    }, 405
+
+
 @app.post("/api/libro-campo")
+@app.post("/api/libro-campo/")
 def create_field_book():
     uploaded = request.files.get("source_file")
     if not uploaded or uploaded.filename == "":
