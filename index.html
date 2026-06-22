@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CP Cuadernos de Campo</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <img src="bayer-logo.jpg" alt="Bayer" class="brand-logo">
+          <div>
+            <p class="eyebrow">Cuadernos de campo</p>
+            <h1>Exportable</h1>
+            <p class="header-copy">Generá el libro de campo desde el Excel de Scout, listo para descargar y compartir.</p>
+          </div>
+        </header>
+
+        <section class="scout-panel">
+          <div class="panel-heading">
+            <span>Scout</span>
+            <h2>Archivo requerido</h2>
+          </div>
+          <div class="scout-content">
+            <p>Para generar el libro de campo, primero exportar desde Scout el Report Set <strong>Protocolo_completo</strong> con estos reportes, en este orden:</p>
+            <ol>
+              <li>Protocol Audit Trail</li>
+              <li>Protocol Data Headers</li>
+              <li>Protocol Description</li>
+              <li>Protocol Treatments</li>
+            </ol>
+            <p>Marcar <strong>Logo</strong>, dejar la clasificación como <strong>Internal</strong> y cargar el Excel exactamente como lo descarga Scout, sin editar hojas, nombres ni columnas.</p>
+          </div>
+        </section>
+
+        <section class="export-grid">
+          <article class="export-panel active">
+            <div class="panel-heading">
+              <span>Excel</span>
+              <h2>Libro de campo</h2>
+            </div>
+            <form id="field-book-form" class="upload-form">
+              <label class="dropzone" for="source-file">
+                <input id="source-file" name="source_file" type="file" accept=".xlsx,.xlsm" required>
+                <span class="drop-title">Subir Excel fuente</span>
+                <span class="drop-copy">Debe tener 4 hojas: general, evaluaciones, descripción y tratamientos.</span>
+              </label>
+              <label class="field-row" for="repetitions">
+                <span>Repeticiones del ensayo</span>
+                <input id="repetitions" name="repetitions" type="number" min="1" step="1" value="4" required>
+              </label>
+              <button type="submit">Generar libro de campo</button>
+            </form>
+            <p id="status" class="status" role="status"></p>
+          </article>
+
+          <article class="export-panel disabled">
+            <div class="panel-heading">
+              <span>Word / PDF</span>
+              <h2>Protocolo</h2>
+            </div>
+            <p>Preparado para la siguiente etapa del proyecto.</p>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
