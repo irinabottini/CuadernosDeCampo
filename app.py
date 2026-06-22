@@ -5,13 +5,13 @@ from tempfile import TemporaryDirectory
 from flask import Flask, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
-from campo_generator.generator import GenerationError, generate_field_book
+from generator import GenerationError, generate_field_book
 
 
 BASE_DIR = Path(__file__).resolve().parent
-TEMPLATE_PATH = BASE_DIR / "data" / "templates" / "libro_campo_modelo.xlsm"
+TEMPLATE_PATH = BASE_DIR / "libro_campo_modelo.xlsm"
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=str(BASE_DIR), static_folder=str(BASE_DIR), static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024
 
 

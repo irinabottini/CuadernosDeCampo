@@ -5,7 +5,7 @@ Aplicación corporativa para generar exportables de trabajo a partir de un Excel
 ## Estado actual
 
 - Genera **Libro de campo - nombre.xlsx**.
-- Usa `data/templates/libro_campo_modelo.xlsm` como plantilla visual.
+- Usa `libro_campo_modelo.xlsm` como plantilla visual.
 - Copia y conserva las hojas base del modelo.
 - Actualiza `Plano`, `Aplicaciones`, `Tratamientos` y `Datos a completar` con datos del Excel fuente.
 - Deja el módulo **Protocolo** preparado para la próxima etapa.
