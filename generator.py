@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import re
 import unicodedata
@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Iterable
 
 from openpyxl import load_workbook
-from openpyxl.styles import PatternFill
+from openpyxl.styles import Alignment, Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -37,11 +37,12 @@ def generate_field_book(
         raise GenerationError("El Excel fuente debe tener exactamente 4 hojas.")
 
     template_wb = load_workbook(template_path, keep_vba=False)
-    title_raw = _cell_text(source_wb.worksheets[0]["A6"].value)
-    protocol_code = _extract_protocol_code(title_raw) or _safe_title(source_path.stem)
-    study_name = _safe_title(_cell_text(source_wb.worksheets[0]["A4"].value) or protocol_code)
+    study_title = _cell_text(source_wb.worksheets[0]["A4"].value)
+    protocol_raw = _cell_text(source_wb.worksheets[0]["A6"].value)
+    protocol_code = _extract_protocol_code(protocol_raw) or _safe_title(source_path.stem)
+    study_name = _safe_title(study_title or protocol_code)
 
-    _build_plano(template_wb["Plano"], title_raw or protocol_code)
+    _build_plano(template_wb["Plano"], study_title or protocol_code)
     _build_aplicaciones(template_wb["Aplicaciones"], source_wb.worksheets[2])
     _build_tratamientos(template_wb["Tratamientos"], source_wb.worksheets[3])
     _build_datos_a_completar(
@@ -62,15 +63,40 @@ def _build_plano(sheet: Worksheet, title: str) -> None:
 
 def _build_aplicaciones(output: Worksheet, source: Worksheet) -> None:
     table = _extract_application_table(source)
-    _unmerge_overlapping(output, min_row=1, min_col=4, max_row=max(output.max_row, len(table) + 2), max_col=20)
-    _clear_range(output, min_row=1, min_col=4, max_row=max(output.max_row, len(table) + 2), max_col=20)
+    app_count = max(max(len(row) for row in table) - 1, 1)
+    equipment_start_col = app_count + 3
+    max_col = equipment_start_col + app_count
+    max_row = max(output.max_row, len(table), 34)
+
+    _unmerge_overlapping(output, min_row=1, min_col=1, max_row=max_row, max_col=max(output.max_column, max_col))
+    _clear_range(output, min_row=1, min_col=2, max_row=max_row, max_col=max(output.max_column, max_col))
+
+    for col_idx in range(2, 2 + app_count):
+        output.cell(2, col_idx, f"Aplicación {_excel_app_letter(col_idx - 1)}")
+        for row_idx in range(1, 35):
+            _copy_style(output.cell(row_idx, 2), output.cell(row_idx, col_idx))
+        output.column_dimensions[get_column_letter(col_idx)].width = 18
+
+    formula_cols = range(2, 2 + app_count)
+    for col_idx in formula_cols:
+        letter = get_column_letter(col_idx)
+        output.cell(23, col_idx, f"={letter}21*{letter}20*{letter}24/60000")
 
     for row_idx, row in enumerate(table, start=1):
-        for col_idx, value in enumerate(row, start=4):
+        for col_idx, value in enumerate(row, start=equipment_start_col):
             cell = output.cell(row=row_idx, column=col_idx, value=value)
-            _copy_style(output.cell(row=min(row_idx, output.max_row), column=min(col_idx, 5)), cell)
+            style_col = 4 if col_idx == equipment_start_col else 5
+            _copy_style(output.cell(row=min(row_idx, output.max_row), column=style_col), cell)
 
-    _style_application_range(output, rows=len(table), cols=max(len(r) for r in table))
+    _style_application_range(
+        output,
+        rows=len(table),
+        cols=max(len(r) for r in table),
+        start_col=equipment_start_col,
+    )
+    _set_range_border(output, 1, 1, 34, max(2 + app_count - 1, 2), outside_style="thick")
+    _set_range_border(output, 1, equipment_start_col, len(table), max_col, outside_style="thick")
+    output.freeze_panes = "B3"
 
 
 def _build_tratamientos(output: Worksheet, source: Worksheet) -> None:
@@ -84,12 +110,6 @@ def _build_tratamientos(output: Worksheet, source: Worksheet) -> None:
             _copy_style(output.cell(row=style_source_row, column=min(col_idx, 9)), cell)
 
     max_col = max(len(row) for row in table)
-    for col_idx in range(1, max_col + 1):
-        output.column_dimensions[get_column_letter(col_idx)].width = max(
-            output.column_dimensions[get_column_letter(min(col_idx, 9))].width or 13,
-            12,
-        )
-
     header = output.iter_rows(min_row=1, max_row=2, min_col=1, max_col=max_col)
     for row in header:
         for cell in row:
@@ -97,7 +117,9 @@ def _build_tratamientos(output: Worksheet, source: Worksheet) -> None:
             cell.font = copy(output["A1"].font)
             cell.alignment = copy(output["A1"].alignment)
 
-    _apply_table_borders(output, 1, 1, len(table), max_col)
+    _merge_treatment_numbers(output, first_data_row=3, last_row=len(table))
+    _autofit_columns(output, 1, max_col, 1, len(table))
+    _set_range_border(output, 1, 1, len(table), max_col, outside_style="thick")
     output.freeze_panes = "A3"
 
 
@@ -121,7 +143,7 @@ def _build_datos_a_completar(output: Worksheet, source: Worksheet, title: str, p
         ["Momento de evaluación", None, None, None] + [_clean_code(source.cell(23, c).value) for c in data_cols],
         ["Fenología", None, None, None] + [""] * len(data_cols),
         ["Fecha", None, None, None] + [""] * len(data_cols),
-        ["Repeticion", "Parcela", "Tratamiento", "Submuestra"] + [""] * len(data_cols),
+        ["Repetición", "Parcela", "Tratamiento", "Submuestra"] + [""] * len(data_cols),
     ]
 
     for row_idx, row in enumerate(rows, start=1):
@@ -187,10 +209,10 @@ def _extract_treatment_table(sheet: Worksheet) -> list[list[object]]:
     return table
 
 
-def _style_application_range(sheet: Worksheet, rows: int, cols: int) -> None:
-    max_col = 3 + cols
+def _style_application_range(sheet: Worksheet, rows: int, cols: int, start_col: int = 4) -> None:
+    max_col = start_col + cols - 1
     for row in range(1, rows + 1):
-        for col in range(4, max_col + 1):
+        for col in range(start_col, max_col + 1):
             cell = sheet.cell(row, col)
             cell.alignment = copy(sheet["E3"].alignment)
             if row == 1:
@@ -202,7 +224,8 @@ def _style_application_range(sheet: Worksheet, rows: int, cols: int) -> None:
             else:
                 cell.fill = copy(sheet["E3"].fill)
                 cell.font = copy(sheet["E3"].font)
-    _apply_table_borders(sheet, 1, 4, rows, max_col)
+            sheet.column_dimensions[get_column_letter(col)].width = 22 if col == start_col else 18
+    _set_range_border(sheet, 1, start_col, rows, max_col, outside_style="thick")
 
 
 def _build_datos_a_completar(
@@ -216,7 +239,7 @@ def _build_datos_a_completar(
         col
         for col in range(2, evaluation_source.max_column + 1)
         if evaluation_source.cell(10, col).value not in (None, "")
-        and evaluation_source.cell(25, col).value in (None, "")
+        and not _has_brackets(evaluation_source.cell(25, col).value)
     ]
     if not data_cols:
         raise GenerationError("No encontré columnas válidas en la hoja 2 con la fila 25 vacía.")
@@ -248,12 +271,14 @@ def _build_datos_a_completar(
     )
 
     for out_row, src_row in enumerate(rows_to_keep, start=1):
-        output.cell(out_row, 4, evaluation_source.cell(src_row, 1).value)
+        output.merge_cells(start_row=out_row, start_column=1, end_row=out_row, end_column=4)
+        output.cell(out_row, 1, evaluation_source.cell(src_row, 1).value)
         for out_col, src_col in enumerate(data_cols, start=5):
             output.cell(out_row, out_col, evaluation_source.cell(src_row, src_col).value)
 
-    output.cell(header_rows - 1, 4, "Fenología")
-    output.cell(header_rows, 4, "Fecha")
+    for row_idx, label in [(header_rows - 1, "Fenología"), (header_rows, "Fecha")]:
+        output.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=4)
+        output.cell(row_idx, 1, label)
 
     for col, header in enumerate(["Repetición", "Parcela", "Tratamiento", "Submuestra"], start=1):
         output.cell(data_header_row, col, header)
@@ -272,6 +297,7 @@ def _build_datos_a_completar(
     if output.max_column > output_max_col:
         output.delete_cols(output_max_col + 1, output.max_column - output_max_col)
     output.freeze_panes = f"E{data_header_row + 1}"
+    output.auto_filter.ref = f"A{data_header_row}:{get_column_letter(output_max_col)}{output_max_row}"
 
 
 def _clear_range(sheet: Worksheet, min_row: int, min_col: int, max_row: int, max_col: int) -> None:
@@ -294,19 +320,77 @@ def _unmerge_overlapping(sheet: Worksheet, min_row: int, min_col: int, max_row: 
 
 def _copy_style(source, target) -> None:
     if source.has_style:
-        target.font = copy(source.font)
-        target.fill = copy(source.fill)
-        target.border = copy(source.border)
-        target.alignment = copy(source.alignment)
-        target.number_format = source.number_format
-        target.protection = copy(source.protection)
+        try:
+            target.font = copy(source.font)
+            target.fill = copy(source.fill)
+            target.border = copy(source.border)
+            target.alignment = copy(source.alignment)
+            target.number_format = source.number_format
+            target.protection = copy(source.protection)
+        except AttributeError:
+            return
 
 
 def _apply_table_borders(sheet: Worksheet, min_row: int, min_col: int, max_row: int, max_col: int) -> None:
     border = copy(sheet.cell(min_row, min_col).border)
     for row in range(min_row, max_row + 1):
         for col in range(min_col, max_col + 1):
-            sheet.cell(row, col).border = border
+            try:
+                sheet.cell(row, col).border = border
+            except AttributeError:
+                continue
+
+
+def _set_range_border(
+    sheet: Worksheet,
+    min_row: int,
+    min_col: int,
+    max_row: int,
+    max_col: int,
+    outside_style: str = "thin",
+) -> None:
+    thin = Side(style="thin", color="808080")
+    outside = Side(style=outside_style, color="404040")
+    for row in range(min_row, max_row + 1):
+        for col in range(min_col, max_col + 1):
+            try:
+                sheet.cell(row, col).border = Border(
+                    left=outside if col == min_col else thin,
+                    right=outside if col == max_col else thin,
+                    top=outside if row == min_row else thin,
+                    bottom=outside if row == max_row else thin,
+                )
+            except AttributeError:
+                continue
+
+
+def _autofit_columns(sheet: Worksheet, min_col: int, max_col: int, min_row: int, max_row: int) -> None:
+    for col in range(min_col, max_col + 1):
+        max_len = 0
+        for row in range(min_row, max_row + 1):
+            value = sheet.cell(row, col).value
+            if value is not None:
+                max_len = max(max_len, len(str(value)))
+        width = min(max(max_len + 2, 8), 45)
+        if col == 1:
+            width = min(width, 12)
+        sheet.column_dimensions[get_column_letter(col)].width = width
+
+
+def _merge_treatment_numbers(sheet: Worksheet, first_data_row: int, last_row: int) -> None:
+    current_start = None
+    for row in range(first_data_row, last_row + 2):
+        value = sheet.cell(row, 1).value if row <= last_row else "END"
+        if isinstance(value, (int, float)) or value == "END":
+            if current_start is not None and row - 1 > current_start:
+                sheet.merge_cells(start_row=current_start, start_column=1, end_row=row - 1, end_column=1)
+                cell = sheet.cell(current_start, 1)
+                cell.alignment = Alignment(horizontal="center", vertical="center")
+            current_start = row if value != "END" else None
+
+
+def _excel_app_letter(index: int) -> str:
+    return get_column_letter(index)
 
 
 def _style_datos_a_completar(
@@ -319,10 +403,10 @@ def _style_datos_a_completar(
 ) -> None:
     label_fill = PatternFill("solid", fgColor="DDEBF7")
     data_header_fill = PatternFill("solid", fgColor="E2EFDA")
+    no_fill = PatternFill(fill_type=None)
 
     for col in range(1, max_col + 1):
-        sheet.column_dimensions[get_column_letter(col)].width = 13
-    sheet.column_dimensions["D"].width = 24
+        sheet.column_dimensions[get_column_letter(col)].width = 14 if col <= 4 else 16
 
     for row in range(1, max_row + 1):
         for col in range(1, max_col + 1):
@@ -332,8 +416,12 @@ def _style_datos_a_completar(
 
     for row in range(1, header_rows + 1):
         for col in range(1, 5):
-            sheet.cell(row, col).fill = copy(label_fill)
-            sheet.cell(row, col).font = copy(sheet["A3"].font)
+            try:
+                sheet.cell(row, col).fill = copy(label_fill)
+                sheet.cell(row, col).font = copy(sheet["A3"].font)
+                sheet.cell(row, col).alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+            except AttributeError:
+                continue
 
     for offset, _source_col in enumerate(data_cols, start=5):
         moment = _norm(sheet.cell(10, offset).value)
@@ -347,7 +435,13 @@ def _style_datos_a_completar(
         cell.font = copy(sheet["A11"].font)
         cell.alignment = copy(sheet["A11"].alignment)
 
-    _apply_table_borders(sheet, 1, 1, max_row, max_col)
+    for row in range(data_header_row + 1, max_row + 1):
+        for col in range(1, 5):
+            sheet.cell(row, col).fill = copy(label_fill)
+        for col in range(5, max_col + 1):
+            sheet.cell(row, col).fill = copy(no_fill)
+
+    _set_range_border(sheet, 1, 1, max_row, max_col, outside_style="thin")
 
 
 def _moment_fill(moment: str) -> str:
@@ -422,6 +516,11 @@ def _clean_code(value) -> str:
     return re.sub(r"^\d+\s*;?\s*", "", text).strip()
 
 
+def _has_brackets(value) -> bool:
+    text = _cell_text(value)
+    return "[" in text or "]" in text
+
+
 def _extract_protocol_code(text: str) -> str:
     match = re.search(r"Protocolo:\s*([A-Z0-9_-]+)", text or "", flags=re.IGNORECASE)
     return match.group(1).strip() if match else ""
@@ -441,3 +540,6 @@ def _norm(value) -> str:
     text = "".join(ch for ch in unicodedata.normalize("NFD", text) if unicodedata.category(ch) != "Mn")
     text = re.sub(r"[^a-z0-9]+", " ", text).strip()
     return text
+
+
+
