@@ -1,5 +1,6 @@
-from pathlib import Path
+import os
 from io import BytesIO
+from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from flask import Flask, render_template, request, send_file
@@ -29,10 +30,12 @@ def create_field_book():
     suffix = Path(uploaded.filename).suffix.lower()
     if suffix not in {".xlsx", ".xlsm"}:
         return {"error": "El archivo debe ser .xlsx o .xlsm."}, 400
+
     try:
         repetitions = int(request.form.get("repetitions", "4"))
     except ValueError:
         return {"error": "La cantidad de repeticiones debe ser un número."}, 400
+
     if repetitions < 1:
         return {"error": "La cantidad de repeticiones debe ser mayor a 0."}, 400
 
@@ -64,4 +67,5 @@ def create_field_book():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", "5000"))
+    app.run(host="0.0.0.0", debug=True, port=port)

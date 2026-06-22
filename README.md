@@ -21,6 +21,22 @@ python app.py
 
 Abrir `http://127.0.0.1:5000` y subir un Excel como `Vayego 1.xlsx`.
 
+## Deploy en Render
+
+Crear un repositorio en GitHub con estos archivos en la raíz y después crear un `Web Service` en Render.
+
+Configuración manual:
+
+```text
+Runtime: Python
+Build Command: pip install -r requirements.txt
+Start Command: gunicorn app:app
+```
+
+El archivo `render.yaml` ya incluye esta configuración como Blueprint opcional.
+
+Render usa `.python-version` para fijar la versión de Python. Este repo usa `3.13`.
+
 ## Archivo fuente desde Scout
 
 Antes de generar el libro de campo, exportar desde Scout el Report Set `Protocolo_completo` con estos reportes:
