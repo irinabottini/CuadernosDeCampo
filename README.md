@@ -30,7 +30,7 @@ Configuración manual:
 ```text
 Runtime: Python
 Build Command: pip install -r requirements.txt
-Start Command: gunicorn app:app
+Start Command: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --timeout 120
 ```
 
 El archivo `render.yaml` ya incluye esta configuración como Blueprint opcional.
